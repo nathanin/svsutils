@@ -5,7 +5,7 @@ import sys
 
 from matplotlib import pyplot as plt
 
-from ..slide import Slide
+from svsutils import Slide
 
 s = Slide(slide_path='/home/nathan/data/ccrcc/TCGA_KIRC/TCGA-A3-3346-01Z-00-DX1.95280216-fd71-4a03-b452-6e3d667f2542.svs',
         process_mag=5,

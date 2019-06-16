@@ -3,4 +3,4 @@ import cv2
 import numpy as np
 import sys
 
-from ..normalize import reinhard
+from svsutils.svs_reader.normalize import reinhard

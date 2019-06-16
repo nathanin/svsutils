@@ -5,8 +5,7 @@ import sys
 import cv2
 import time
 
-sys.path.insert(0, '..')
-from slide import Slide
+from svsutils import Slide
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True

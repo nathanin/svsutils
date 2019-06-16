@@ -5,7 +5,7 @@ import tensorflow.contrib.eager as tfe
 import sys
 import cv2
 
-from ..slide import Slide
+from svsutils import Slide
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True

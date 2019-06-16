@@ -5,7 +5,7 @@ import sys
 import cv2
 import time
 
-from ..slide import Slide
+from svsutils import Slide
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True

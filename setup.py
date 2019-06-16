@@ -1,11 +1,11 @@
 import setuptools
 
 setuptools.setup(
-    name=        "svs_reader",
-    version=     "0.1",
+    name=        "svsutils",
+    version=     "0.2",
     author=      "Nathan Ing",
     author_email="ing.nathany@gmail.com",
-    description ="Iterate over SVS image contents",
-    url         ="https://github.com/nathanin/svs_reader",
+    description ="Tools for digital pathology",
+    url         ="https://github.com/nathanin/svsutils",
     packages    =setuptools.find_packages()
 )
