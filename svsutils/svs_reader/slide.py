@@ -104,8 +104,9 @@ class Slide(object):
       else:
         setattr(self, key, val)
 
-  # def compute(self, input):
-
+  def compute(self, target, args, **kwargs):
+    ret = self.output_fns[target](self, args, **kwargs)
+    return ret
 
   def _get_low_level_index(self):
     ## get the info to read/write the low-level image more efficiently
@@ -309,14 +310,11 @@ class Slide(object):
 
 
   def _check_read_tile(self):
-    print('Checking tile read function')
     coords = self.tile_list[0]
     try:
       ret = self._read_tile(coords)
     except:
       raise Exception('Read tile check failed')
-
-    print('Passed read check')
 
 
   def generate_index(self, shuffle=True):
