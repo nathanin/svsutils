@@ -30,6 +30,7 @@ def main(args):
     ret = slide.compute('wsi', args)
     cv2.imwrite(dst, ret)
   
+
 if __name__ == '__main__':
   p = argparse.ArgumentParser()
   p.add_argument('lst')

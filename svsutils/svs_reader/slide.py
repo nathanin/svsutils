@@ -162,11 +162,12 @@ class Slide(object):
       output_img = np.zeros((int(h), int(w), dim), dtype=np.float32)
       self.output_imgs[name] = output_img
 
-    ## Initialize an image for one-value-per-tile output (dimensions reducing)
+    ## Initialize an image for one-value-per-tile output
     elif mode=='tile':
       y = len(self.y_coord)
       x = len(self.x_coord)
       output_img = np.zeros((y, x, dim), dtype=np.float32)
+      # output_img = np.zeros_like(self.ds_tile_map, dtype=np.float32)
       self.output_imgs[name] = output_img
 
     self.output_types.append(name)
@@ -551,7 +552,11 @@ class Slide(object):
       else:
         self.output_imgs[name][y0:y1, x0:x1, :] += x
     elif mode=='tile':
-      location = self.ds_tile_map == idx
+      location = np.where(self.ds_tile_map == idx)
+      # print('ds tile map:', self.ds_tile_map.shape)
+      # print('idx:', idx)
+      # print('location:', location)
+      # print('self.output_imgs[name]', self.output_imgs[name].shape)
       self.output_imgs[name][location] = x
 
   def place_batch(self, xs, idxs, name, mode='full', clobber=False):
