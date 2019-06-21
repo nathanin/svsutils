@@ -92,6 +92,8 @@ class PythonIterator():
         yield bimg, bidx
 
 
+# How to check tensorflow is imported ? 
+# Maybe we'll just let the errors flow naturally
 class TensorflowIterator(PythonIterator):
   """
   A class for building an iterator for use like:

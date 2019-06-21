@@ -398,6 +398,7 @@ class Slide(object):
     for yi, yy in enumerate(yc):
       for xi, xx in enumerate(xc):
         self.ds_tile_map[yi, xi] = idx
+        idx += 1
         tile_list.append([ yy*self.ds_load_level , xx*self.ds_load_level ])
 
     self.tile_list = tile_list
@@ -553,10 +554,6 @@ class Slide(object):
         self.output_imgs[name][y0:y1, x0:x1, :] += x
     elif mode=='tile':
       location = np.where(self.ds_tile_map == idx)
-      # print('ds tile map:', self.ds_tile_map.shape)
-      # print('idx:', idx)
-      # print('location:', location)
-      # print('self.output_imgs[name]', self.output_imgs[name].shape)
       self.output_imgs[name][location] = x
 
   def place_batch(self, xs, idxs, name, mode='full', clobber=False):
