@@ -399,6 +399,7 @@ class Slide(object):
     for yi, yy in enumerate(yc):
       for xi, xx in enumerate(xc):
         self.ds_tile_map[yi, xi] = idx
+        idx += 1
         tile_list.append([ yy*self.ds_load_level , xx*self.ds_load_level ])
         idx += 1
 

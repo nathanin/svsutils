@@ -4,7 +4,7 @@ from .svs_reader import *
 from .postprocess import *
 
 import os
-import shutil
+import shutil 
 def repext(src, newext):
   """
   Make it deal with trailing / leading periods.
@@ -34,7 +34,7 @@ def cpramdisk(src, dst):
 __all__ = [
   # Utilities (here)
   'repext', 
-  'cpramdisk',
+  'cpramdisk'
 
   # Iterators
   'PythonIterator',

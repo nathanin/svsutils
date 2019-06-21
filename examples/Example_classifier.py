@@ -7,7 +7,7 @@ Utilities demonstrated here:
 cpramdisk      - manages and copies data between slow and fast media
 Slide          - core object for managing slide data read/write
 PythonIterator - hooks for creating generators out of a Slide
-
+xx
 TensorflowIterator - A wrapped PythonIterator with multithreading
                      and direct integration with TensorFlow graphs
 
@@ -23,7 +23,11 @@ python Example_classifier.py [slides.txt] [model/snapshot.h5] [encoder type] [op
 
 June 2019
 """
-from svsutils import repext, cpramdisk, Slide, PythonIterator
+from svsutils import repext
+from svsutils import cpramdisk
+from svsutils import Slide
+from svsutils import PythonIterator
+from svsutils import TensorflowIterator
 
 import tensorflow as tf
 import numpy as np
@@ -40,17 +44,37 @@ def main(args):
   # 1. define an iterator over the slide's tiles
   # 2. compute an output with given model parameter
   # 3. 
-  #
-  def compute_fn(slide, args, model=None):
-    print('Slide with {}'.format(len(slide.tile_list)))
-    it_factory = PythonIterator(slide, args)
-    for k, (img, idx) in enumerate(it_factory.yield_batch()):
-      prob = model(img)
-      if k % 50 == 0:
-        print('Img #{} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
-      slide.place_batch(prob, idx, 'prob', mode='tile')
-    ret = slide.output_imgs['prob']
-    return ret
+
+  if args.iter_type == 'python':
+    def compute_fn(slide, args, model=None):
+      print('Slide with {}'.format(len(slide.tile_list)))
+      it_factory = PythonIterator(slide, args)
+      for k, (img, idx) in enumerate(it_factory.yield_batch()):
+        prob = model(img)
+        if k % 50 == 0:
+          print('Img #{} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
+        slide.place_batch(prob, idx, 'prob', mode='tile')
+      ret = slide.output_imgs['prob']
+      return ret
+  elif args.iter_type == 'tf':
+    # Tensorflow multithreaded queue-based iterator (in eager mode)
+    def compute_fn(slide, args, model=None):
+      assert tf.executing_eagerly()
+      # In eager mode, we return a tf.contrib.eager.Iterator
+      eager_iterator = TensorflowIterator(slide, args)
+
+      # The iterator can be used directly. Ququeing and multithreading
+      # are handled in the backend by the tf.data.Dataset ops
+      for k, (img, idx) in enumerate(eager_iterator):
+        # Batches are already returned with the proper 4D shape
+        prob = model(img)
+        # Now everything is a tf.EagerTensor so we should call the numpy() method
+        prob, img, idx = prob.numpy(), img.numpy(), idx.numpy()
+        if k % 50 == 0:
+          print('Img #{} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
+        slide.place_batch(prob, idx, 'prob', mode='tile')
+      ret = slide.output_imgs['prob']
+      return ret
 
 
   def compute_fn(slide, args, model=None):
@@ -124,6 +148,7 @@ if __name__ == '__main__':
   p.add_argument('slides') 
   p.add_argument('snapshot') 
   p.add_argument('encoder') 
+  p.add_argument('--iter_type', default='tf', type=str) 
 
   # common arguments with defaults
   p.add_argument('-b', dest='batchsize', default=8, type=int)
