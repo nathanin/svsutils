@@ -153,9 +153,7 @@ class Slide(object):
   def initialize_output(self, name, dim, mode='full',
                         compute_fn=None):
     """ Set up the output image to the same size as the level-0 shape
-
     """
-
     ## Initialize an image for dimensions preserving output
     if mode=='full':
       h,w = self.foreground.shape[:2]
@@ -169,12 +167,15 @@ class Slide(object):
       output_img = np.zeros((y, x, dim), dtype=np.float32)
       # output_img = np.zeros_like(self.ds_tile_map, dtype=np.float32)
       self.output_imgs[name] = output_img
+      if self.verbose:
+        print('Initialized output {} ({})'.format(name, output_img.shape))
 
     self.output_types.append(name)
     if compute_fn is not None:
       self.output_fns[name] = compute_fn
     else:
       self.output_fns[name] = lambda x: x
+
 
   def _get_load_size(self, process_size, loading_level, downsample):
     """ Process the current slide attributes and requested image size
@@ -399,6 +400,7 @@ class Slide(object):
       for xi, xx in enumerate(xc):
         self.ds_tile_map[yi, xi] = idx
         tile_list.append([ yy*self.ds_load_level , xx*self.ds_load_level ])
+        idx += 1
 
     self.tile_list = tile_list
 
@@ -481,9 +483,10 @@ class Slide(object):
       print('Finished in {:3.4f}s'.format(time.time() - tstart))
       print('Pruned tile list: {}'.format(len(new_tile_list)))
 
-
     self.tile_list = new_tile_list
     self.ds_tile_map = new_ds_tile_map
+
+
 
   def _image_reference_background(self):
     """ Reject background using a reference image
@@ -553,10 +556,6 @@ class Slide(object):
         self.output_imgs[name][y0:y1, x0:x1, :] += x
     elif mode=='tile':
       location = np.where(self.ds_tile_map == idx)
-      # print('ds tile map:', self.ds_tile_map.shape)
-      # print('idx:', idx)
-      # print('location:', location)
-      # print('self.output_imgs[name]', self.output_imgs[name].shape)
       self.output_imgs[name][location] = x
 
   def place_batch(self, xs, idxs, name, mode='full', clobber=False):

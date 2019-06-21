@@ -26,7 +26,6 @@ class PythonIterator():
   img_idx (bool): Whether to yield a tuple (img, index). (True)
   batchsize (int): Size of batches to yield. 
                    Batches will be (batchsize, h, w, c). (1)
-
   """
   def __init__(self, slide, args, **kwargs):
     self.arg_defaults = {
@@ -60,6 +59,7 @@ class PythonIterator():
       else:
         setattr(self, key, val)
     
+
   def yield_one(self, shuffle=True):
     """
     for img, idx in slideobj.yield_one():
@@ -71,25 +71,25 @@ class PythonIterator():
       img = self.slide._read_tile(coords)
       yield img, idx
 
-  def yeild_batch(self, shuffle=True):
+
+  def yield_batch(self, shuffle=True):
     """
     it's faster to call yield_one() if batchsize=1
+
+    Note because of array_split the batchsize may be off
     """
-    # np.array_split or while < batch size ?
-    single_generator = self.yield_one(shuffle=shuffle)
-    while True:
-      bimg, bidx = [], []
-      try:
-        while n < self.batch_size:
-          bimg.append(bimg)
-          bidx.append(bidx)
-          n+=1
-      except:
-        break
-      finally:
-        bimg = np.stack(bimg, axis=0)
-        bidx = np.concatenate(bimg)
-        yield bimg, bidx
+    indices = np.arange(len(self.slide.tile_list))
+    n_batches = len(indices) // self.batchsize
+    batches = np.array_split(indices, n_batches)
+    for bidx in batches:
+      bimg = []
+      for idx in bidx:
+        coords = self.slide.tile_list[idx]
+        img = self.slide._read_tile(coords)
+        bimg.append(img)
+
+      bimg = np.stack(bimg, axis=0)
+      yield bimg, bidx
 
 
 class TensorflowIterator(PythonIterator):
@@ -103,7 +103,6 @@ class TensorflowIterator(PythonIterator):
   img_idx (bool): Whether to yield a tuple (img, index). (True)
   batchsize (int): Size of batches to yield. 
                    Batches will be (batchsize, h, w, c). (1)
-
   """
   def __init__(self, slide, args, **kwargs):
   # batchsize=1, img_idx=True, prefetch=256, workers=6):
