@@ -36,13 +36,13 @@ if __name__ == '__main__':
   p.add_argument('lst')
   p.add_argument('-t', default='img.jpg')
   p.add_argument('-b', dest='batchsize', default=1, type=int)
-  p.add_argument('-r', dest='ramdisk', default='./', type=str)
+  p.add_argument('-r', dest='ramdisk', default='/dev/shm', type=str)
 
   # Slide options
   p.add_argument('--mag',   dest='process_mag', default=5, type=int)
   p.add_argument('--chunk', dest='process_size', default=512, type=int)
   p.add_argument('--bg',    dest='background_speed', default='all', type=str)
-  p.add_argument('--ovr',   dest='oversample_factor', default=1.5, type=float)
+  p.add_argument('--ovr',   dest='oversample_factor', default=1.2, type=float)
 
   args = p.parse_args()
   main(args)

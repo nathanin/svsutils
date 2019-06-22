@@ -52,16 +52,19 @@ def main(args):
       for k, (img, idx) in enumerate(it_factory.yield_batch()):
         prob = model(img)
         if k % 50 == 0:
-          print('Img #{} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
+          print('Batch #{:04d} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
         slide.place_batch(prob, idx, 'prob', mode='tile')
       ret = slide.output_imgs['prob']
       return ret
+
+  # Tensorflow multithreaded queue-based iterator (in eager mode)
   elif args.iter_type == 'tf':
-    # Tensorflow multithreaded queue-based iterator (in eager mode)
     def compute_fn(slide, args, model=None):
       assert tf.executing_eagerly()
+      print('Slide with {}'.format(len(slide.tile_list)))
+
       # In eager mode, we return a tf.contrib.eager.Iterator
-      eager_iterator = TensorflowIterator(slide, args)
+      eager_iterator = TensorflowIterator(slide, args).make_iterator()
 
       # The iterator can be used directly. Ququeing and multithreading
       # are handled in the backend by the tf.data.Dataset ops
@@ -71,21 +74,18 @@ def main(args):
         # Now everything is a tf.EagerTensor so we should call the numpy() method
         prob, img, idx = prob.numpy(), img.numpy(), idx.numpy()
         if k % 50 == 0:
-          print('Img #{} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
+          print('Batch #{:04d} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
         slide.place_batch(prob, idx, 'prob', mode='tile')
       ret = slide.output_imgs['prob']
       return ret
 
-
-  def compute_fn(slide, args, model=None):
-    
 
   # Set up the model first
   encoder_args = get_encoder_args(args.encoder)
   model = ClassifierEager(encoder_args=encoder_args, n_classes=5)
   x = tf.zeros((1, args.process_size,
                 args.process_size, 3))
-  yhat = model(x, verbose=True, training=True)
+  _ = model(x, verbose=True, training=True)
   model.load_weights(args.snapshot)
 
   # keras Model subclass
@@ -100,7 +100,8 @@ def main(args):
     # Dirty substitution of the file extension give us the
     # destination. Do this first so we can just skip the slide
     # if this destination already exists.
-    dst = repext(src, '.prob.npy')
+    # Set the --suffix option to reflect the model / type of processed output
+    dst = repext(src, args.suffix)
 
     # Loading data from ramdisk incurs a one-time copy cost
     rdsrc = cpramdisk(src, args.ramdisk)
@@ -137,7 +138,6 @@ def main(args):
       print('Removing {}'.format(rdsrc))
       os.remove(rdsrc)
 
-
 if __name__ == '__main__':
   """
   standard __name__ == __main__ ?? 
@@ -149,10 +149,12 @@ if __name__ == '__main__':
   p.add_argument('snapshot') 
   p.add_argument('encoder') 
   p.add_argument('--iter_type', default='tf', type=str) 
+  p.add_argument('--suffix', default='.prob.npy', type=str) 
 
   # common arguments with defaults
-  p.add_argument('-b', dest='batchsize', default=8, type=int)
+  p.add_argument('-b', dest='batchsize', default=64, type=int)
   p.add_argument('-r', dest='ramdisk', default='/dev/shm', type=str)
+  p.add_argument('-j', dest='workers', default=8, type=int)
 
   # Slide options
   p.add_argument('--mag',   dest='process_mag', default=5, type=int)

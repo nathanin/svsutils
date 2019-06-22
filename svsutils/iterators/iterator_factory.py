@@ -1,6 +1,31 @@
 """
 
 June 2019
+
+
+NOTE:
+preprocessing is handled by the call to Slide._read_region() which
+obfuscates online control of the preprocessing function. 
+
+For example, maybe we want to apply several models to the slide, 
+all requiring different preprocessing. 
+
+Maybe we want to ablate the ppr_fn itself.
+
+A theme where the ppr_fn is passed into the 
+Iterator constructor via the args might be the way to go here.
+
+We'd track it:
+'''
+self.ppr_fn = args.preprocess_fn
+'''
+and add a call to it immediately after reading a tile.
+
+This would go inside the wrapped_fn for the TensorFlow iteraror, to use
+multithreading in the backend.
+
+Also, turn off the autmoatic preprocessing inside slide._read_tile()
+
 """
 
 import numpy as np
