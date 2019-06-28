@@ -34,7 +34,7 @@ import tensorflow as tf
 import numpy as np
 import traceback
 
-from milk.eager import ClassifierEager
+from milk.eager import MilkEager
 from milk.encoder_config import get_encoder_args
 
 import argparse
@@ -69,25 +69,39 @@ def main(args):
 
       # The iterator can be used directly. Ququeing and multithreading
       # are handled in the backend by the tf.data.Dataset ops
+      features, indices = [], []
       for k, (img, idx) in enumerate(eager_iterator):
-        # Batches are already returned with the proper 4D shape
-        prob = model(img, training=False)
-        # Now everything is a tf.EagerTensor so we should call the numpy() method
-        prob, img, idx = prob.numpy(), img.numpy(), idx.numpy()
+        # img = tf.expand_dims(img, axis=0)
+        features.append( model.encode_bag(img, training=False, return_z=True) )
+        indices.append(idx.numpy())
+
+        img, idx = img.numpy(), idx.numpy()
         if k % 50 == 0:
-          print('Batch #{:04d} idx:{} img:{:3.3f} ({}) prob:{}'.format(k, idx.shape, img.max(), img.shape, prob.shape))
-          # print(prob)
-        slide.place_batch(prob, idx, 'prob', mode='tile')
-      ret = slide.output_imgs['prob']
+          print('Batch #{:04d}\t{}'.format(k, img.shape))
+
+      features = tf.concat(features, axis=0)
+      z_att, att = model.mil_attention(features,
+                                       training=False, 
+                                       return_raw_att=True)
+      att = np.squeeze(att)
+      indices = np.concatenate(indices)
+      slide.place_batch(att, indices, 'att', mode='tile')
+      ret = slide.output_imgs['att']
       return ret
 
   # Set up the model first
   encoder_args = get_encoder_args(args.encoder)
-  model = ClassifierEager(encoder_args=encoder_args, n_classes=args.n_classes)
-  x = tf.zeros((1, args.process_size,
+  model = MilkEager(encoder_args=encoder_args,
+                    mil_type=args.mil,
+                    deep_classifier=args.deep_classifier,
+                    batch_size=args.batchsize,
+                    temperature=args.temperature,
+                    heads = args.heads)
+  
+  x = tf.zeros((1, 1, args.process_size,
                 args.process_size, 3))
-  _ = model(x, verbose=True, training=True)
-  model.load_weights(args.snapshot)
+  _ = model(x, verbose=True, head='all', training=True)
+  model.load_weights(args.snapshot, by_name=True)
 
   # keras Model subclass
   model.summary()
@@ -122,14 +136,14 @@ def main(args):
       # with some default compute_fn's provided by svsutils
       # For now, do it case-by-case, and use the compute_fn
       # that we defined just above.
-      slide.initialize_output('prob', args.n_classes, mode='tile',
+      slide.initialize_output('att', args.n_classes, mode='tile',
         compute_fn=compute_fn)
 
       # Call the compute function to compute this output.
       # Again, this may change to something like...
       #     slide.compute_all
       # which would loop over all the defined output types.
-      ret = slide.compute('prob', args, model=model)
+      ret = slide.compute('att', args, model=model)
       print('{} --> {}'.format(ret.shape, dst))
       np.save(dst, ret[:,:,::-1])
     except Exception as e:
@@ -153,20 +167,26 @@ if __name__ == '__main__':
   p.add_argument('snapshot') 
   p.add_argument('encoder') 
   p.add_argument('--iter_type', default='tf', type=str) 
-  p.add_argument('--suffix', default='.prob.npy', type=str) 
+  p.add_argument('--suffix', default='.att.npy', type=str) 
 
   # common arguments with defaults
   p.add_argument('-b', dest='batchsize', default=64, type=int)
   p.add_argument('-r', dest='ramdisk', default='/dev/shm', type=str)
   p.add_argument('-j', dest='workers', default=8, type=int)
-  p.add_argument('-c', dest='n_classes', default=4, type=int)
+  p.add_argument('-c', dest='n_classes', default=1, type=int)
 
   # Slide options
-  p.add_argument('--mag',   dest='process_mag', default=5, type=int)
+  p.add_argument('--mag',   dest='process_mag', default=10, type=int)
   p.add_argument('--chunk', dest='process_size', default=96, type=int)
   p.add_argument('--bg',    dest='background_speed', default='all', type=str)
-  p.add_argument('--ovr',   dest='oversample_factor', default=1.1, type=float)
+  p.add_argument('--ovr',   dest='oversample_factor', default=1.25, type=float)
   p.add_argument('--verbose', dest='verbose', default=False, action='store_true')
+
+  # Keywords for the model
+  p.add_argument('--mil',   dest='mil', default='attention', type=str)
+  p.add_argument('--heads',   dest='heads', default=5, type=int)
+  p.add_argument('--temperature',   dest='temperature', default=0.5, type=float)
+  p.add_argument('--deep_classifier', dest='deep_classifier', default=False, action='store_true')
 
   args = p.parse_args()
 

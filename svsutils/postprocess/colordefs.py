@@ -1,11 +1,34 @@
 import numpy as np
 
+"""
+Colors from playing around in
+
+http://vrl.cs.brown.edu/color
+"""
+
 builtin_cmaps = {
   'elf': np.array(
-    [(130,84,45),   # brown
+    [
+     (130,84,45),   # brown
      (214,7,36),    # red
      (37,131,135),   # turquois
-     (244,202,203)]
+     (244,202,203),  # pink
+     ]
+   ),
+  'elfr': np.array(
+    [
+     (244,202,203),
+     (37,131,135),   # turquois
+     (130,84,45),   # brown
+     (214,7,36),    # red
+     ]
+   ),
+  'elf5': np.array(
+    [(130,84,45),   # brown
+     (222,16,16),    # red
+     (9,22,203),  # green
+     (37,131,135),   # turquois
+     (244,202,203)]  # pink
    ),
   'greens': np.array(
     [(32,142,183), 

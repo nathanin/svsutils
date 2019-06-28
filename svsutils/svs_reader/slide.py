@@ -392,7 +392,8 @@ class Slide(object):
 
     yc, xc = self.y_coord, self.x_coord
     h,w = self.foreground.shape[:2]
-    self.ds_tile_map = np.zeros((h, w), dtype=np.int) - 1
+    # self.ds_tile_map = np.zeros((h, w), dtype=np.int) - 1
+    self.ds_tile_map = np.zeros((len(yc), len(xc)), dtype=np.int) - 1
 
     idx = 0
     tile_list = []
@@ -401,7 +402,6 @@ class Slide(object):
         self.ds_tile_map[yi, xi] = idx
         idx += 1
         tile_list.append([ yy*self.ds_load_level , xx*self.ds_load_level ])
-        idx += 1
 
     self.tile_list = tile_list
 

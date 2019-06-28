@@ -33,7 +33,7 @@ def overlay_img(base, pred, colors, mixture):
         interpolation=cv2.INTER_LINEAR)
     ymax = np.argmax(y, axis=-1)
     # Find unprocessed space
-    ymax[np.sum(y, axis=-1) < 1e-2] = 4 # white
+    ymax[np.sum(y, axis=-1) < 1e-2] = colors.shape[0]-1 # white
   elif ext == '.png':
     y = cv2.imread(pred, -1)
     y = cv2.resize(y, fx=0, fy=0, dsize=ishape, 

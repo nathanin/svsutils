@@ -26,11 +26,11 @@ June 2019
 from svsutils import repext
 from svsutils import cpramdisk
 from svsutils import Slide
-from svsutils import reinhard
 from svsutils import PythonIterator
 from svsutils import TensorflowIterator
 
 import tensorflow as tf
+from tensorflow.keras.models import load_model
 import numpy as np
 import traceback
 
@@ -40,57 +40,67 @@ from milk.encoder_config import get_encoder_args
 import argparse
 import os
 
-def main(args):
+def main(args, sess):
   # Define a compute_fn that should do three things:
   # 1. define an iterator over the slide's tiles
   # 2. compute an output with given model parameter
   # 3. 
 
-  if args.iter_type == 'python':
-    def compute_fn(slide, args, model=None):
-      print('Slide with {}'.format(len(slide.tile_list)))
-      it_factory = PythonIterator(slide, args)
-      for k, (img, idx) in enumerate(it_factory.yield_batch()):
-        prob = model(img)
-        if k % 50 == 0:
-          print('Batch #{:04d} idx:{} img:{} prob:{}'.format(k, idx.shape, img.shape, prob.shape))
-        slide.place_batch(prob, idx, 'prob', mode='tile')
-      ret = slide.output_imgs['prob']
-      return ret
+  # def compute_fn(slide, args, model=None):
+  #   print('Slide with {}'.format(len(slide.tile_list)))
+  #   it_factory = PythonIterator(slide, args)
+  #   for k, (img, idx) in enumerate(it_factory.yield_batch()):
+  #     prob = model.predict_on_batch(img)
+  #     if k % 50 == 0:
+  #       print('Batch #{:04d} idx:{} img:{} prob:{} \
+  #       '.format(k, idx.shape, img.shape, prob.shape))
+  #     slide.place_batch(prob, idx, 'prob', mode='tile')
+  #   ret = slide.output_imgs['prob']
+  #   return ret
 
   # Tensorflow multithreaded queue-based iterator (in eager mode)
-  elif args.iter_type == 'tf':
-    def compute_fn(slide, args, model=None):
-      assert tf.executing_eagerly()
-      print('Slide with {}'.format(len(slide.tile_list)))
+  # elif args.iter_type == 'tf':
 
-      # In eager mode, we return a tf.contrib.eager.Iterator
-      eager_iterator = TensorflowIterator(slide, args).make_iterator()
+  def compute_fn(slide, args, sess=None, img_pl=None, prob_op=None):
+    # assert tf.executing_eagerly()
+    print('\n\nSlide with {}'.format(len(slide.tile_list)))
 
-      # The iterator can be used directly. Ququeing and multithreading
-      # are handled in the backend by the tf.data.Dataset ops
-      for k, (img, idx) in enumerate(eager_iterator):
-        # Batches are already returned with the proper 4D shape
-        prob = model(img, training=False)
-        # Now everything is a tf.EagerTensor so we should call the numpy() method
-        prob, img, idx = prob.numpy(), img.numpy(), idx.numpy()
+    # I'm not sure if spinning up new ops every time is bad.
+    tf_iterator = TensorflowIterator(slide, args).make_iterator()
+    img_op, idx_op = tf_iterator.get_next()
+    # prob_op = model(img_op)
+    # sess.run(tf.global_variables_initializer())
+
+    # The iterator can be used directly. Ququeing and multithreading
+    # are handled in the backend by the tf.data.Dataset ops
+    # for k, (img, idx) in enumerate(eager_iterator):
+    k, nk = 0, 0
+    while True:
+      try:
+        img, idx = sess.run([img_op, idx_op,])
+        prob = sess.run(prob_op, {img_pl: img})
+        nk += img.shape[0]
         if k % 50 == 0:
-          print('Batch #{:04d} idx:{} img:{:3.3f} ({}) prob:{}'.format(k, idx.shape, img.max(), img.shape, prob.shape))
-          # print(prob)
+          print('Batch #{:04d} idx:{} img:{} ({}) prob:{} T {} \
+          '.format(k, idx.shape, img.max(), img.shape, prob.shape, nk))
         slide.place_batch(prob, idx, 'prob', mode='tile')
-      ret = slide.output_imgs['prob']
-      return ret
+        k += 1
+      except tf.errors.OutOfRangeError:
+        print('Finished.')
+        print('Total: {}'.format(nk)) 
+        break
+      finally:
+        ret = slide.output_imgs['prob']
+    return ret
 
   # Set up the model first
-  encoder_args = get_encoder_args(args.encoder)
-  model = ClassifierEager(encoder_args=encoder_args, n_classes=args.n_classes)
-  x = tf.zeros((1, args.process_size,
-                args.process_size, 3))
-  _ = model(x, verbose=True, training=True)
-  model.load_weights(args.snapshot)
 
-  # keras Model subclass
-  model.summary()
+  # Set up a placeholder for the input
+  img_pl = tf.placeholder(tf.float32, 
+    (None, args.process_size, args.process_size, 3))
+  model = load_model(args.snapshot)
+  prob_op = model(img_pl)
+  sess.run(tf.global_variables_initializer())
 
   # Read list of inputs
   with open(args.slides, 'r') as f:
@@ -116,22 +126,23 @@ def main(args):
       # Initialze the side from our temporary path, with 
       # the arguments passed in from command-line.
       # This returns an svsutils.Slide object
+      print('\n\n-------------------------------')
       slide = Slide(rdsrc, args)
 
       # This step will eventually be included in slide creation
       # with some default compute_fn's provided by svsutils
       # For now, do it case-by-case, and use the compute_fn
       # that we defined just above.
-      slide.initialize_output('prob', args.n_classes, mode='tile',
+      slide.initialize_output('prob', 4, mode='tile',
         compute_fn=compute_fn)
 
       # Call the compute function to compute this output.
       # Again, this may change to something like...
       #     slide.compute_all
       # which would loop over all the defined output types.
-      ret = slide.compute('prob', args, model=model)
+      ret = slide.compute('prob', args, sess=sess, img_pl=img_pl, prob_op=prob_op)
       print('{} --> {}'.format(ret.shape, dst))
-      np.save(dst, ret[:,:,::-1])
+      np.save(dst, ret)
     except Exception as e:
       print(e)
       traceback.print_tb(e.__traceback__)
@@ -148,18 +159,16 @@ if __name__ == '__main__':
   # positional arguments for this program
   # last call
   # python Example_classifier.py
-  #
+  
   p.add_argument('slides') 
   p.add_argument('snapshot') 
-  p.add_argument('encoder') 
-  p.add_argument('--iter_type', default='tf', type=str) 
+  p.add_argument('--iter_type', default='py', type=str) 
   p.add_argument('--suffix', default='.prob.npy', type=str) 
 
   # common arguments with defaults
   p.add_argument('-b', dest='batchsize', default=64, type=int)
   p.add_argument('-r', dest='ramdisk', default='/dev/shm', type=str)
-  p.add_argument('-j', dest='workers', default=8, type=int)
-  p.add_argument('-c', dest='n_classes', default=4, type=int)
+  p.add_argument('-j', dest='workers', default=6, type=int)
 
   # Slide options
   p.add_argument('--mag',   dest='process_mag', default=5, type=int)
@@ -171,7 +180,9 @@ if __name__ == '__main__':
   args = p.parse_args()
 
   # Functionals for later:
-  args.__dict__['preprocess_fn'] = lambda x: (reinhard(x) / 255.).astype(np.float32)
+  args.__dict__['preprocess_fn'] = lambda x: (x / 255.).astype(np.float32)
 
-  tf.enable_eager_execution()
-  main(args)
+  tfconfig = tf.ConfigProto()
+  tfconfig.gpu_options.allow_growth = True
+  with tf.Session(config=tfconfig) as sess:
+    main(args, sess)

@@ -14,12 +14,16 @@ def main(args):
   colors = define_colors(args.colorname, 
                          args.n_colors,
                          add_white = True, 
-                         shuffle = True)
+                         shuffle = False)
   print(colors)
 
   idx = 0
   for slide, prob in zip(slidelist, problist):
-    dst = repext(slide, '.ovr.jpg')
+    dst = repext(prob, '.ovr.jpg')
+    if os.path.exists(dst):
+      print('{} Exists.'.format(dst))
+      continue
+
     print(slide, '-->', dst)
     ret = overlay_img(slide, prob, colors, 
           mixture = [0.3, 0.7])
@@ -42,7 +46,6 @@ if __name__ == '__main__':
   p.add_argument('--colorname', default='elf', type=str)
   p.add_argument('--n_colors',  default=4, type=int)
 
-  p.add_argument('-t', default='img.jpg')
   p.add_argument('-b', dest='batchsize', default=1, type=int)
   p.add_argument('-r', dest='ramdisk', default='./', type=str)
 

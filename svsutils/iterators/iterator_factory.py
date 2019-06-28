@@ -139,7 +139,7 @@ class TensorflowIterator(PythonIterator):
     self.arg_defaults = {
       'batchsize':1,
       'img_idx':True,
-      'prefetch': 256,
+      'prefetch': 512,
       'workers': 4
     }
     # Check identity of slide
@@ -172,6 +172,9 @@ class TensorflowIterator(PythonIterator):
     if tf.executing_eagerly():
       return tf.contrib.eager.Iterator(ds)
     else:
-      return ds.make_one_shot_iterator()
+      self.iterator = ds.make_one_shot_iterator()
+      # self.img_op, self.idx_op = next(self.iterator)
+      # return self.img_op, self.idx_op
+      return self.iterator
 
     
