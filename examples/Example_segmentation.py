@@ -106,6 +106,9 @@ def main(args, sess):
         traceback.print_tb(e.__traceback__)
         break
 
+    # We've exited the loop. Clean up the iterator
+    del tf_iterator, idx_op, img_op
+
     # slide.make_outputs()
     slide.make_outputs()
     ret = slide.output_imgs['prob']
@@ -177,6 +180,12 @@ def main(args, sess):
     finally:
       print('Removing {}'.format(rdsrc))
       os.remove(rdsrc)
+      try:
+        print('Cleaning slide object')
+        slide.close()
+        del slide
+      except:
+        print('No slide object not found to clean up ?')
 
 if __name__ == '__main__':
   """
