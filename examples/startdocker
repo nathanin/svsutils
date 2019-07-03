@@ -1,0 +1,1 @@
+docker run -v /home/ing/projects/milk/:/milk -v /mnt/linux-data/gleason-grade-slides/:/slides -v /home/ing/projects/svsutils/:/svsutils --rm -it --shm-size 5g ingn/tensorflow-gpu-openslide

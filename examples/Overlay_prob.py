@@ -123,6 +123,10 @@ def main(args):
 
   for bi, pr in zip(baseimgs, predictions):
     dst = repext(pr, args.suffix)
+    if os.path.exists(dst):
+      print('{} Exists'.format(dst))
+      continue
+
     combo = overlay_img(bi, pr, mixture, colors, dst)
     print('{} --> {}'.format(combo.shape, dst))
     cv2.imwrite(dst, combo)
