@@ -14,23 +14,6 @@ class Slide(object):
   using Otsu thresholding, and populates a list of tiles at the requested magnification
   and size.
 
-  ```
-  slide_defaults = {
-    'slide_path': None,
-    'low_level_mag': 5,
-    'preprocess_fn': lambda x: x,  ## ID
-    'process_mag': 10,
-    'process_size': 256,
-    'normalize_fn': reinhard,
-    'background_speed': 'fast', # One of 'fast' or 'accurate'
-    'background_threshold': 210,
-    'background_pct': 0.15,
-    'oversample_factor': 1.25,
-    'output_types': [],
-    'output_res': '5x',
-    'verbose': False}
-  ```
-
   Args:
     slide_path: path to the slide
     process_mag: int for the magnification level (5, 10, 20, 40)
@@ -542,6 +525,8 @@ class Slide(object):
     if self.verbose:
       print('{} tiles'.format(len(self.tile_list)))
       print('down sample tile map: ', self.ds_tile_map.shape, self.ds_tile_map.min(), self.ds_tile_map.max())
+
+    # np.random.shuffle(self.tile_list)
 
   # place x into location, doing whatever downsampling is needed
   def place(self, x, idx, name, mode='full', clobber=False):

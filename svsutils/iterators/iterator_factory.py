@@ -131,7 +131,7 @@ class TensorflowIterator(PythonIterator):
   batchsize (int): Size of batches to yield. 
                    Batches will be (batchsize, h, w, c). (1)
   """
-  def __init__(self, slide, args, **kwargs):
+  def __init__(self, slide, args, dtypes=[tf.float32, tf.int64], **kwargs):
   # batchsize=1, img_idx=True, prefetch=256, workers=6):
     super(TensorflowIterator, self).__init__(slide, args)
     # assert 'tf' in dir() # How to check tensorflow is imported
@@ -149,6 +149,8 @@ class TensorflowIterator(PythonIterator):
     self.extract_args(args)
     assert self.batchsize > 0
 
+    self.dtypes = dtypes
+
   def read_region_at_index(self, idx):
 
     def wrapped_fn(idx):
@@ -158,7 +160,7 @@ class TensorflowIterator(PythonIterator):
 
     return tf.py_func(func = wrapped_fn,
                       inp  = [idx],
-                      Tout = [tf.float32, tf.int64],
+                      Tout = self.dtypes,
                       stateful = False)
 
   def make_iterator(self):

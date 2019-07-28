@@ -52,7 +52,6 @@ def savehist(ydig, colors, dst):
     patches[k].set_facecolor(colors[k])
   plt.savefig(hist, bbox_inches='tight')
 
-
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
 def overlay_img(base, pred, mixture, colors, dst):
   img = cv2.imread(base)
@@ -137,6 +136,10 @@ def main(args):
 
   for bi, pr in zip(baseimgs, predictions):
     dst = repext(pr, args.suffix)
+    if os.path.exists(dst):
+      print('Exists {}'.format(dst))
+      continue
+
     combo = overlay_img(bi, pr, mixture, colors, dst)
     print('{} --> {}'.format(combo.shape, dst))
     cv2.imwrite(dst, combo)
