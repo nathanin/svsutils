@@ -12,7 +12,7 @@ def repext(src, newext):
   newtxt = '{}'.format(newext)
   return os.path.splitext(src)[0] + newtxt
 
-## TODO This can be a context
+## TODO This can be a context with syntax like:
 ## with cpramdisk(src, dst) as slide:
 ##     ... stuff
 ## 

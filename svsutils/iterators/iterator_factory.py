@@ -46,6 +46,10 @@ class PythonIterator():
   for img, idx in it_factory.yield_one(...):
     ...
 
+  By default PythonIterator produces one image at a time,
+  yielding (img, index) pairs where the batch dimension
+  of img is 1.
+
   Parameters:
   src (svsutils.Slide): Path to slide (required)
   img_idx (bool): Whether to yield a tuple (img, index). (True)

@@ -80,7 +80,11 @@ class Slide(object):
   def extract_args(self, aparse_space):
     # Extract parts of aparse_space that are 
     # 1:1 in the dictionary
-    input_keys = list(aparse_space.__dict__.keys())
+    if aparse_space is not None:
+      input_keys = list(aparse_space.__dict__.keys())
+    else:
+      input_keys = []
+
     for key, val in self.arg_defaults.items():
       if key in input_keys:
         setattr(self, key, aparse_space.__dict__[key])

@@ -22,8 +22,6 @@ def compute_fn(slide, args):
 
 
 
-
-
 def main(args):
   with open(args.lst, 'r') as f:
     srclist = [x.strip() for x in f]
