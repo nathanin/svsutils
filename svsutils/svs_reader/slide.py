@@ -17,7 +17,7 @@ class Slide(object):
   Args:
     slide_path: path to the slide
     process_mag: int for the magnification level (5, 10, 20, 40)
-    process_size: int edge length of the tile.
+    xsize: int edge length of the tile.
     normalize_fn: function to apply on each individual tile before returning
     oversample_factor: float, the factor by which to oversample from the slide when 
       returning tiles
@@ -37,9 +37,9 @@ class Slide(object):
     self.arg_defaults = {
       # 'slide_path': None,
       'low_level_mag': 5,
-      'preprocess_fn': lambda x: x,  ## ID
+      'preprocess_fn': lambda x: x / 255.,  ## 0-1
       'process_mag': 10,
-      'process_size': 256,
+      'xsize': 256,
       'normalize_fn': lambda x: x,
       'background_speed': 'fast', # One of 'fast', 'accurate' or 'mask'
       'background_image': None,
@@ -48,7 +48,8 @@ class Slide(object):
       'oversample_factor': 1.25,
       'output_types': [],
       'output_mag': 5,
-      'verbose': False}
+      'verbose': False
+    }
     # slide_defaults.update(kwargs)
     # for key, val in slide_defaults.items():
     #   setattr(self, key, val)
@@ -164,7 +165,7 @@ class Slide(object):
       self.output_fns[name] = lambda x: x
 
 
-  def _get_load_size(self, process_size, loading_level, downsample):
+  def _get_load_size(self, xsize, loading_level, downsample):
     """ Process the current slide attributes and requested image size
 
     Sets the attributes:
@@ -177,7 +178,7 @@ class Slide(object):
     ds_load_level = int(self.svs.level_downsamples[loading_level])
 
     if self.verbose:
-      print('Requested processing size: {}'.format(process_size))
+      print('Requested processing size: {}'.format(xsize))
       print('Estimated loading from level: {}'.format(loading_level))
       print('Downsample at estimated level: {}'.format(ds_load_level))
 
@@ -188,16 +189,16 @@ class Slide(object):
     if ds_load_level == downsample:
       if self.verbose:
         print('Loading size: {} ({}x processing size)'.format(
-          process_size, 1))
-      return process_size, 1
+          xsize, 1))
+      return xsize, 1
 
     ## scan @ 40x; request 20x
     if ds_load_level < downsample:
       ratio = int(downsample / ds_load_level)
       if self.verbose:
         print('Loading size: {} ({}x processing size)'.format(
-          process_size*ratio, ratio))
-      return process_size*ratio, 1./ratio
+          xsize*ratio, ratio))
+      return xsize*ratio, 1./ratio
 
 
   def _get_load_params(self):
@@ -210,7 +211,7 @@ class Slide(object):
     downsample = int(self.slide_info['scan_power'] / self.process_mag)
     loading_level = self.svs.get_best_level_for_downsample(downsample+EPS)
     load_level_dims = self.svs.level_dimensions[loading_level][::-1]
-    loading_size, post_load_resize = self._get_load_size(self.process_size,
+    loading_size, post_load_resize = self._get_load_size(self.xsize,
       loading_level, downsample)
 
     if self.verbose:
@@ -237,7 +238,7 @@ class Slide(object):
     ds_low_level = int(self.svs.level_downsamples[-1])
     place_downsample = self.downsample / float(ds_low_level)
     self.ds_low_level = ds_low_level
-    place_size = int(self.process_size * place_downsample)
+    place_size = int(self.xsize * place_downsample)
     if self.verbose:
       print('Placing size: {}'.format(place_size))
 

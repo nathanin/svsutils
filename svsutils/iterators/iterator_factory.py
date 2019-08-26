@@ -58,7 +58,7 @@ class PythonIterator():
   """
   def __init__(self, slide, args, **kwargs):
     self.arg_defaults = {
-      'batchsize':1,
+      'batch':1,
       'img_idx':True
     }
     # Check identity of slide
@@ -66,7 +66,7 @@ class PythonIterator():
 
     self.slide = slide
     self.extract_args(args)
-    assert self.batchsize > 0
+    assert self.batch > 0
 
     # Do not create an iterator 
 
@@ -108,7 +108,7 @@ class PythonIterator():
     Note because of array_split the batchsize may be off
     """
     indices = np.arange(len(self.slide.tile_list))
-    n_batches = len(indices) // self.batchsize
+    n_batches = len(indices) // self.batch
     batches = np.array_split(indices, n_batches)
     for bidx in batches:
       bimg = []
@@ -141,7 +141,7 @@ class TensorflowIterator(PythonIterator):
     # assert 'tf' in dir() # How to check tensorflow is imported
 
     self.arg_defaults = {
-      'batchsize':1,
+      'batch':1,
       'img_idx':True,
       'prefetch': 512,
       'workers': 4
@@ -151,12 +151,11 @@ class TensorflowIterator(PythonIterator):
 
     self.slide = slide
     self.extract_args(args)
-    assert self.batchsize > 0
+    assert self.batch > 0
 
     self.dtypes = dtypes
 
   def read_region_at_index(self, idx):
-
     def wrapped_fn(idx):
       coords = self.slide.tile_list[idx]
       img = self.slide._read_tile(coords)
@@ -167,13 +166,21 @@ class TensorflowIterator(PythonIterator):
                       Tout = self.dtypes,
                       stateful = False)
 
+  def make_dataset(self):
+    ds = tf.data.Dataset.from_generator(generator=self.slide.generate_index,
+        output_types=tf.int64)
+    ds = ds.map(self.read_region_at_index, num_parallel_calls=self.workers)
+    ds = ds.prefetch(self.prefetch)
+    ds = ds.batch(self.batch)
+    return ds
+
   def make_iterator(self):
     # TODO allow sequential reading ?
     ds = tf.data.Dataset.from_generator(generator=self.slide.generate_index,
         output_types=tf.int64)
     ds = ds.map(self.read_region_at_index, num_parallel_calls=self.workers)
     ds = ds.prefetch(self.prefetch)
-    ds = ds.batch(self.batchsize)
+    ds = ds.batch(self.batch)
 
     if tf.executing_eagerly():
       return tf.contrib.eager.Iterator(ds)
