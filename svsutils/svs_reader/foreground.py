@@ -26,10 +26,11 @@ def read_region(svs, x, y, level, size, flip_channels=False, verbose=False):
     return img
 
 
-def read_low_level(svs, low_level_index=None, verbose=False):
+def read_low_level(svs, low_level_index=None, low_level_offset=None, verbose=False):
     if low_level_index is None:
         # print('Inferring low level: {}'.format(svs.level_count - 1))
-        low_index = svs.level_count - 1
+        low_level_offset = low_level_offset if low_level_offset is not None else 1
+        low_index = svs.level_count - low_level_offset
     else:
         low_index = low_level_index
 
@@ -94,8 +95,9 @@ def imfill(img):
     return img2 > 0
 
 
-def get_foreground(svs, low_level_index=None):
-    img = read_low_level(svs, low_level_index=low_level_index)
+def get_foreground(svs, low_level_index=None, low_level_offset=None):
+    img = read_low_level(svs, low_level_index=low_level_index,
+      low_level_offset=low_level_offset)
 
     # Boolean image of white areas
     whitemap = whitespace(img, mode='thresh')

@@ -176,11 +176,12 @@ class TensorflowIterator(PythonIterator):
 
   def make_iterator(self):
     # TODO allow sequential reading ?
-    ds = tf.data.Dataset.from_generator(generator=self.slide.generate_index,
-        output_types=tf.int64)
-    ds = ds.map(self.read_region_at_index, num_parallel_calls=self.workers)
-    ds = ds.prefetch(self.prefetch)
-    ds = ds.batch(self.batch)
+    # ds = tf.data.Dataset.from_generator(generator=self.slide.generate_index,
+    #     output_types=tf.int64)
+    # ds = ds.map(self.read_region_at_index, num_parallel_calls=self.workers)
+    # ds = ds.prefetch(self.prefetch)
+    # ds = ds.batch(self.batch)
+    ds = self.make_dataset()
 
     if tf.executing_eagerly():
       return tf.contrib.eager.Iterator(ds)

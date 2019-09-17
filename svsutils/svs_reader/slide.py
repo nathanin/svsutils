@@ -25,8 +25,13 @@ class Slide(object):
     # Planned
     low_level_mag: magnification to hold the reconstructed images
 
-  Returns:
-    Slide object
+  Methods:
+    initialize_output(self, name, dim, mode='full', compute_fn=None)
+    compute(self, target, args, **kwargs)
+    generate_index(self, shuffle=True)
+    generator(self)
+    place(self, x, idx, name, mode='full', clobber=False)
+    place_batch(self, xs, idxs, name, mode='full', clobber=False)
 
   https://stackoverflow.com/questions/47086599/parallelising-tf-data-dataset-from-generator
   """
@@ -37,7 +42,7 @@ class Slide(object):
     self.arg_defaults = {
       # 'slide_path': None,
       'low_level_mag': 5,
-      'preprocess_fn': lambda x: x / 255.,  ## 0-1
+      'preprocess_fn': lambda x: (x / 255.).astype(np.float32),  ## 0-1
       'process_mag': 10,
       'xsize': 256,
       'normalize_fn': lambda x: x,
@@ -45,6 +50,8 @@ class Slide(object):
       'background_image': None,
       'background_threshold': 210,
       'background_pct': 0.15,
+      'foreground_level': 2,
+      'foreground_level_from_bottom': 1,
       'oversample_factor': 1.25,
       'output_types': [],
       'output_mag': 5,
@@ -62,9 +69,11 @@ class Slide(object):
 
     # self.low_level_index = self.get_low_level_index()
     # self.foreground = get_foreground(self.svs, low_level_index=2)
-    self.foreground = get_foreground(self.svs)
+    self.foreground = get_foreground(self.svs, 
+      low_level_index=None,
+      low_level_offset=self.foreground_level_from_bottom)
     self._get_load_params()
-    self.tile()
+    self._tile()
 
     ## Reconstruction params
     self._get_place_params()
@@ -92,9 +101,145 @@ class Slide(object):
       else:
         setattr(self, key, val)
 
+
+  def initialize_output(self, name, dim, mode='full', compute_fn=None):
+    """ Set up the output image to the same size as the level-0 shape """
+    ## Initialize an image for dimensions preserving output
+    if mode=='full':
+      h,w = self.foreground.shape[:2]
+      output_img = np.zeros((int(h), int(w), dim), dtype=np.float32)
+      self.output_imgs[name] = output_img
+
+    ## Initialize an image for one-value-per-tile output
+    elif mode=='tile':
+      y = len(self.y_coord)
+      x = len(self.x_coord)
+      output_img = np.zeros((y, x, dim), dtype=np.float32)
+      # output_img = np.zeros_like(self.ds_tile_map, dtype=np.float32)
+      self.output_imgs[name] = output_img
+      if self.verbose:
+        print('Initialized output {} ({})'.format(name, output_img.shape))
+
+    # self.output_types.append(name) ## Err: 'tuple' object has no attribute 'append'
+    if compute_fn is not None:
+      self.output_fns[name] = compute_fn
+    else:
+      self.output_fns[name] = lambda x: x
+
+
   def compute(self, target, args, **kwargs):
+    """ Run the stored function on the slide
+
+    This method wraps a call to self.output_fns[target] (defined in initialize output)
+    passing in an argparse space, and a set of keyword args.
+
+    """
     ret = self.output_fns[target](self, args, **kwargs)
     return ret
+
+
+  def generate_index(self, shuffle=True):
+    """ Returns an iterable of tile_list indices 
+
+    Parameters:
+    shuffle (bool): Whether to return a shuffled list (true)
+    """
+    tile_list = np.copy(self.tile_list)
+    if shuffle:
+      np.random.shuffle(tile_list)
+
+    for idx, _ in enumerate(tile_list):
+      yield idx
+
+
+  ## TODO add live skipping of white area
+  def generator(self):
+    """ Returns an iterable list of (image, index) pairs
+
+    Example usage:
+    ``` python
+    svs = Slide(...)
+    generator = svs.generator()
+    img, idx = next(generator)
+    ```
+    """
+    for idx, coords in enumerate(self.tile_list):
+      img = self._read_tile(coords)
+      yield img, idx
+
+
+  def place(self, x, idx, name, mode='full', clobber=False):
+    # place x into location, doing whatever downsampling is needed
+    if mode=='full':
+      place_coord = self.place_list[idx]
+      y0, x0 = place_coord
+      x1 = x0 + int(self.place_size)
+      y1 = y0 + int(self.place_size)
+      x = cv2.resize(x, dsize=(int(self.place_size), int(self.place_size)))
+      if clobber:
+        self.output_imgs[name][y0:y1, x0:x1, :] = x
+      else:
+        self.output_imgs[name][y0:y1, x0:x1, :] += x
+    elif mode=='tile':
+      location = np.where(self.ds_tile_map == idx)
+      self.output_imgs[name][location] = x
+
+
+  def place_batch(self, xs, idxs, name, mode='full', clobber=False):
+    for x , idx in zip(xs,idxs):
+      self.place(x, idx, name, mode=mode, clobber=clobber)
+
+
+  def make_outputs(self, reference='prob'):
+    """ Fix overlap artifacts introduced by using place() with clobber=False
+    """
+    inter = cv2.INTER_LINEAR
+    self._get_overlapping_images(reference)
+    for key, img in self.output_imgs.items():
+      img_size = img.shape[:2][::-1]
+      overlap_2 = cv2.resize(self.twice_overlapping, dsize=img_size, 
+                   interpolation=inter).astype(np.bool)
+      overlap_3 = cv2.resize(self.thrice_overlapping, dsize=img_size, 
+                   interpolation=inter).astype(np.bool)
+      overlap_4 = cv2.resize(self.quad_overlapping, dsize=img_size, 
+                   interpolation=inter).astype(np.bool)
+      img[overlap_2] = img[overlap_2] / 2.
+      img[overlap_3] = img[overlap_3] / 3.
+      img[overlap_4] = img[overlap_4] / 4.
+      self.output_imgs[key] = img
+
+
+  def close(self):
+    """ Close references to the slide and generated outputs """
+    print('Closing slide')
+    del self.foreground
+    del self.output_imgs
+    self.svs.close()
+
+
+  def print_info(self):
+    """ Prints info about the slide object """
+    print('\n----------------------- SLIDE -----------------------')
+    for key, val in sorted(self.__dict__.items()):
+      if 'list' in key:
+        print('\t {}:\n|\t\t\tlength: {}'.format(key, len(val)))
+        continue
+
+      if type(val) is np.ndarray:
+        print('\t {}:\n|\t\t\tshape: {}'.format(key, val.shape))
+        continue
+
+      if key == 'output_imgs':
+        try:
+          for vk, vv in val.items():
+            print('\t {}:\n|\t\t\t{}: {}'.format(key, vk, vv.shape))
+        except:
+          print('\t {}:\n|\t\t\tlen: {}'.format(key, len(val)))
+        continue
+
+      print('\t {}:\n|\t\t\t{}'.format(key, val))
+    print('----------------------- SLIDE -----------------------\n')
+
 
   def _get_low_level_index(self):
     ## get the info to read/write the low-level image more efficiently
@@ -136,33 +281,6 @@ class Slide(object):
       'low_power_dim': low_power_dim,
       'level_dimensions': svs.level_dimensions }
     return svs
-
-
-  def initialize_output(self, name, dim, mode='full',
-                        compute_fn=None):
-    """ Set up the output image to the same size as the level-0 shape
-    """
-    ## Initialize an image for dimensions preserving output
-    if mode=='full':
-      h,w = self.foreground.shape[:2]
-      output_img = np.zeros((int(h), int(w), dim), dtype=np.float32)
-      self.output_imgs[name] = output_img
-
-    ## Initialize an image for one-value-per-tile output
-    elif mode=='tile':
-      y = len(self.y_coord)
-      x = len(self.x_coord)
-      output_img = np.zeros((y, x, dim), dtype=np.float32)
-      # output_img = np.zeros_like(self.ds_tile_map, dtype=np.float32)
-      self.output_imgs[name] = output_img
-      if self.verbose:
-        print('Initialized output {} ({})'.format(name, output_img.shape))
-
-    self.output_types.append(name)
-    if compute_fn is not None:
-      self.output_fns[name] = compute_fn
-    else:
-      self.output_fns[name] = lambda x: x
 
 
   def _get_load_size(self, xsize, loading_level, downsample):
@@ -232,10 +350,10 @@ class Slide(object):
     """ Logic translating processing size into reconstruct() args
 
     """
-
     ## Place w.r.t. level 0
     ## We have process downsample.. and downsample w.r.t. Last level
-    ds_low_level = int(self.svs.level_downsamples[-1])
+    # ds_low_level = int(self.svs.level_downsamples[-1])
+    ds_low_level = int(self.svs.level_downsamples[self.foreground_level])
     place_downsample = self.downsample / float(ds_low_level)
     self.ds_low_level = ds_low_level
     place_size = int(self.xsize * place_downsample)
@@ -259,9 +377,7 @@ class Slide(object):
     ! TODO This function appears unused
 
     return: y1, y2, x1, x2, level, downsample
-
     """
-
     y1, x1 = coords
     # y1 = int(y1 * self.post_load_resize)
     # x1 = int(x1 * self.post_load_resize)
@@ -280,7 +396,6 @@ class Slide(object):
     passes in all the right settings: level, dimensions, etc.
 
     """
-
     y, x = coords
     size = (self.loading_size, self.loading_size)
     img = self.svs.read_region((x, y), self.loading_level, size)
@@ -307,34 +422,6 @@ class Slide(object):
       raise Exception('Read tile check failed')
 
 
-  def generate_index(self, shuffle=True):
-    """ Returns an iterable of tile_list indices 
-
-    Parameters:
-    shuffle (bool): Whether to return a shuffled list (true)
-    """
-    tile_list = np.copy(self.tile_list)
-    if shuffle:
-      np.random.shuffle(tile_list)
-
-    for idx, _ in enumerate(tile_list):
-      yield idx
-
-
-  ## TODO add live skipping of white area
-  def generator(self):
-    """ Returns an iterable list of (image, index) pairs
-
-    Example usage:
-    ``` python
-    svs = Slide(...)
-    generator = svs.generator()
-    img, idx = next(generator)
-    ```
-    """
-    for idx, coords in enumerate(self.tile_list):
-      img = self._read_tile(coords)
-      yield img, idx
 
 
   def _find_all_tiles(self):
@@ -429,6 +516,7 @@ class Slide(object):
 
     self.tile_list = tile_list
 
+
   def _accurate_reject_background(self):
     """ Reject background by reading tiles and making indiviual decisions
 
@@ -516,7 +604,8 @@ class Slide(object):
     # Set attributes
     self.tile_list = tile_list
 
-  def tile(self):
+
+  def _tile(self):
     self.tile_list = self._find_all_tiles()
     if self.background_speed == 'all':
       self._all_background()
@@ -531,31 +620,10 @@ class Slide(object):
       print('{} tiles'.format(len(self.tile_list)))
       print('down sample tile map: ', self.ds_tile_map.shape, self.ds_tile_map.min(), self.ds_tile_map.max())
 
-    # np.random.shuffle(self.tile_list)
 
-  # place x into location, doing whatever downsampling is needed
-  def place(self, x, idx, name, mode='full', clobber=False):
-    if mode=='full':
-      place_coord = self.place_list[idx]
-      y0, x0 = place_coord
-      x1 = x0 + int(self.place_size)
-      y1 = y0 + int(self.place_size)
-      x = cv2.resize(x, dsize=(int(self.place_size), int(self.place_size)))
-      if clobber:
-        self.output_imgs[name][y0:y1, x0:x1, :] = x
-      else:
-        self.output_imgs[name][y0:y1, x0:x1, :] += x
-    elif mode=='tile':
-      location = np.where(self.ds_tile_map == idx)
-      self.output_imgs[name][location] = x
-
-  def place_batch(self, xs, idxs, name, mode='full', clobber=False):
-    for x , idx in zip(xs,idxs):
-      self.place(x, idx, name, mode=mode, clobber=clobber)
-
-  ## Valid probability distribution sums to 1.
-  ## We can tell where the overlaps are by finding areas that sum > 1
-  def get_overlapping_images(self, reference):
+  def _get_overlapping_images(self, reference):
+    ## Valid probability distribution sums to 1.
+    ## We can tell where the overlaps are by finding areas that sum > 1
     ref_img = self.output_imgs[reference]
     ref_sum = np.sum(ref_img, axis=-1)
 
@@ -569,56 +637,3 @@ class Slide(object):
     # print('Found {} areas with 4x coverage'.format(self.quad_overlapping.sum()))
     # print('Found {} areas with 5x coverage'.format(self.quint_overlapping.sum()))
 
-  # colorize, and write out; adjust for mismatching sizes between prob, and all other outputs
-  def make_outputs(self, reference='prob'):
-    inter = cv2.INTER_LINEAR
-    self.get_overlapping_images(reference)
-    for key, img in self.output_imgs.items():
-      img_size = img.shape[:2][::-1]
-      # print('Fixing overlaps in {} ({})'.format(key, img_size))
-      overlap_2 = cv2.resize(self.twice_overlapping, dsize=img_size, 
-                   interpolation=inter).astype(np.bool)
-      overlap_3 = cv2.resize(self.thrice_overlapping, dsize=img_size, 
-                   interpolation=inter).astype(np.bool)
-      overlap_4 = cv2.resize(self.quad_overlapping, dsize=img_size, 
-                   interpolation=inter).astype(np.bool)
-      # overlap_5 = cv2.resize(self.quint_overlapping, dsize=img_size, 
-      #            interpolation=inter).astype(np.bool)
-      img[overlap_2] = img[overlap_2] / 2.
-      img[overlap_3] = img[overlap_3] / 3.
-      img[overlap_4] = img[overlap_4] / 4.
-      # img[overlap_5] = img[overlap_5] / 5.
-      self.output_imgs[key] = img
-
-  def close(self):
-    """ Close references to the slide and generated outputs """
-    print('Closing slide')
-    del self.foreground
-    del self.output_imgs
-    self.svs.close()
-
-
-  def print_info(self):
-    """ Prints info about the slide object """
-    print('\n======================= SLIDE ======================')
-    print('|')
-    for key, val in sorted(self.__dict__.items()):
-      if 'list' in key:
-        print('|\t {}:\n|\t\t\tlength: {}'.format(key, len(val)))
-        continue
-
-      if type(val) is np.ndarray:
-        print('|\t {}:\n|\t\t\tshape: {}'.format(key, val.shape))
-        continue
-
-      if key == 'output_imgs':
-        try:
-          for vk, vv in val.items():
-            print('|\t {}:\n|\t\t\t{}: {}'.format(key, vk, vv.shape))
-        except:
-          print('|\t {}:\n|\t\t\tlen: {}'.format(key, len(val)))
-        continue
-
-      print('|\t {}:\n|\t\t\t{}'.format(key, val))
-    print('|')
-    print('======================= SLIDE ======================\n')
