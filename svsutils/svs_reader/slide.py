@@ -46,7 +46,7 @@ class Slide(object):
       'process_mag': 10,
       'xsize': 256,
       'normalize_fn': lambda x: x,
-      'background_speed': 'fast', # One of 'fast', 'accurate' or 'mask'
+      'background_speed': 'fast', # One of 'fast', 'accurate' or 'image'
       'background_image': None,
       'background_threshold': 210,
       'background_pct': 0.15,
@@ -61,6 +61,11 @@ class Slide(object):
     # for key, val in slide_defaults.items():
     #   setattr(self, key, val)
     self.extract_args(aparse_space)
+
+    ## prioritize explicitly given kwargs
+    for key, val in kwargs.items():
+      setattr(self, key, val)
+
     self.slide_path = src
     self.svs = self._parse_svs_info()
 
@@ -211,7 +216,7 @@ class Slide(object):
 
   def close(self):
     """ Close references to the slide and generated outputs """
-    print('Closing slide')
+    # print('Closing slide')
     del self.foreground
     del self.output_imgs
     self.svs.close()
@@ -259,7 +264,10 @@ class Slide(object):
     """
 
     svs = OpenSlide(self.slide_path)
-    scan_power = int(svs.properties['aperio.AppMag'])
+    try:
+      scan_power = int(svs.properties['aperio.AppMag'])
+    except:
+      scan_power = 40
     level_count = svs.level_count
     high_power_dim = svs.level_dimensions[0][::-1]
     low_power_dim = svs.level_dimensions[-1][::-1]
@@ -323,7 +331,6 @@ class Slide(object):
     """ Translate slide params and requested `process_mag` into `read_region` args
 
     """
-
     ## Add a small number to the requested downsample because often we're off by some.
     EPS = 1e-3
     downsample = int(self.slide_info['scan_power'] / self.process_mag)
@@ -371,30 +378,26 @@ class Slide(object):
     self.place_list = place_list
 
 
-  def _read_region_args(self, coords):
-    """ Returns the parameters needed to for _read_tile
-
-    ! TODO This function appears unused
-
-    return: y1, y2, x1, x2, level, downsample
-    """
-    y1, x1 = coords
-    # y1 = int(y1 * self.post_load_resize)
-    # x1 = int(x1 * self.post_load_resize)
-    y1 = int(y1 / self.ds_load_level)
-    x1 = int(x1 / self.ds_load_level)
-    y2 = int(y1 + self.loading_size * self.post_load_resize)
-    x2 = int(x1 + self.loading_size * self.post_load_resize)
-    level = self.loading_level
-    downsample = self.post_load_resize
-    return y1, y2, x1, x2, level, downsample
+  # def _read_region_args(self, coords):
+  #   """ Returns the parameters needed to for _read_tile
+  #   ! TODO This function appears unused
+  #   return: y1, y2, x1, x2, level, downsample
+  #   """
+  #   y1, x1 = coords
+  #   # y1 = int(y1 * self.post_load_resize)
+  #   # x1 = int(x1 * self.post_load_resize)
+  #   y1 = int(y1 / self.ds_load_level)
+  #   x1 = int(x1 / self.ds_load_level)
+  #   y2 = int(y1 + self.loading_size * self.post_load_resize)
+  #   x2 = int(x1 + self.loading_size * self.post_load_resize)
+  #   level = self.loading_level
+  #   downsample = self.post_load_resize
+  #   return y1, y2, x1, x2, level, downsample
 
 
   def _read_tile(self, coords, as_is=False):
     """ Call openslide.read_region on the slide
-
     passes in all the right settings: level, dimensions, etc.
-
     """
     y, x = coords
     size = (self.loading_size, self.loading_size)
@@ -449,6 +452,7 @@ class Slide(object):
 
     self.y_coord = y_coord
     self.x_coord = x_coord
+
 
 
   def _all_background(self):

@@ -89,16 +89,25 @@ class PythonIterator():
         setattr(self, key, val)
     
 
-  def yield_one(self, shuffle=True):
+  def yield_one(self, shuffle=True, also_yield=None):
     """
     for img, idx in slideobj.yield_one():
       ...
 
+    also_yield is a list-like or constant that should be yielded next to the slide contents
     """
-    for idx in self.slide.generate_index(shuffle=shuffle):
-      coords = self.slide.tile_list[idx]
-      img = self.slide._read_tile(coords)
-      yield img, idx
+
+    if also_yield is not None:
+      for idx in self.slide.generate_index(shuffle=shuffle):
+        coords = self.slide.tile_list[idx]
+        img = self.slide._read_tile(coords)
+        yield img, idx, also_yield
+
+    else:
+      for idx in self.slide.generate_index(shuffle=shuffle):
+        coords = self.slide.tile_list[idx]
+        img = self.slide._read_tile(coords)
+        yield img, idx
 
 
   def yield_batch(self, shuffle=True):
@@ -136,9 +145,7 @@ class TensorflowIterator(PythonIterator):
                    Batches will be (batchsize, h, w, c). (1)
   """
   def __init__(self, slide, args, dtypes=[tf.float32, tf.int64], **kwargs):
-  # batchsize=1, img_idx=True, prefetch=256, workers=6):
     super(TensorflowIterator, self).__init__(slide, args)
-    # assert 'tf' in dir() # How to check tensorflow is imported
 
     self.arg_defaults = {
       'batch':1,
@@ -146,8 +153,6 @@ class TensorflowIterator(PythonIterator):
       'prefetch': 512,
       'workers': 4
     }
-    # Check identity of slide
-    # assert 
 
     self.slide = slide
     self.extract_args(args)
