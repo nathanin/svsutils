@@ -189,7 +189,9 @@ class TensorflowIterator(PythonIterator):
     ds = self.make_dataset()
 
     if tf.executing_eagerly():
-      return tf.contrib.eager.Iterator(ds)
+      # return tf.contrib.eager.Iterator(ds)
+      # eager datasets can be iterated over -- tf1.15+
+      return ds
     else:
       self.iterator = ds.make_one_shot_iterator()
       # self.img_op, self.idx_op = next(self.iterator)

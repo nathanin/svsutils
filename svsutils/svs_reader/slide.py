@@ -35,6 +35,7 @@ class Slide(object):
 
   https://stackoverflow.com/questions/47086599/parallelising-tf-data-dataset-from-generator
   """
+
   def __init__(self, src, aparse_space, **kwargs):
     # These live inside the class instance so they 
     # can be changed and the change will follow 
@@ -42,10 +43,10 @@ class Slide(object):
     self.arg_defaults = {
       # 'slide_path': None,
       'low_level_mag': 5,
-      'preprocess_fn': lambda x: (x / 255.).astype(np.float32),  ## 0-1
+      'preprocess_fn': make_float_and_center,  ## 0-1
       'process_mag': 10,
       'xsize': 256,
-      'normalize_fn': lambda x: x,
+      'normalize_fn': passthrough_fn,
       'background_speed': 'fast', # One of 'fast', 'accurate' or 'image'
       'background_image': None,
       'background_threshold': 210,
@@ -75,7 +76,7 @@ class Slide(object):
     # self.low_level_index = self.get_low_level_index()
     # self.foreground = get_foreground(self.svs, low_level_index=2)
     self.foreground = get_foreground(self.svs, 
-      low_level_index=None,
+      low_level_index=self.foreground_level,
       low_level_offset=self.foreground_level_from_bottom)
     self._get_load_params()
     self._tile()
@@ -139,6 +140,8 @@ class Slide(object):
     passing in an argparse space, and a set of keyword args.
 
     """
+
+    # NOTE compute() can return a list or tuple of values
     ret = self.output_fns[target](self, args, **kwargs)
     return ret
 
@@ -181,6 +184,8 @@ class Slide(object):
       x1 = x0 + int(self.place_size)
       y1 = y0 + int(self.place_size)
       x = cv2.resize(x, dsize=(int(self.place_size), int(self.place_size)))
+      if len(x.shape) == 2:
+        x = np.expand_dims(x, -1)
       if clobber:
         self.output_imgs[name][y0:y1, x0:x1, :] = x
       else:
@@ -641,3 +646,20 @@ class Slide(object):
     # print('Found {} areas with 4x coverage'.format(self.quad_overlapping.sum()))
     # print('Found {} areas with 5x coverage'.format(self.quint_overlapping.sum()))
 
+
+
+
+"""
+Defining lambda functions in the dictionary gave this error in TensorFlowIterator
+WARNING:tensorflow:Entity <function Slide.__init__.<locals>.<lambda> at 0x7f4a73bcbb70> could not be transformed and will be executed as-is. Please report this to the AutoGraph team. When filing the bug, set the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and attach the full output. Cause: Failed to parse source code of <function Slide.__init__.<locals>.<lambda> at 0x7f4a73bcbb70>, which Python reported as:
+    'normalize_fn': lambda x: x,
+
+If this is a lambda function, the error may be avoided by creating the lambda in a standalone statement.
+WARNING:tensorflow:Entity <function Slide.__init__.<locals>.<lambda> at 0x7f4a73bcbb70> could not be transformed and will be executed as-is. Please report this to the AutoGraph team. When filing the bug, set the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and attach the full output. Cause: Failed to parse source code of <function Slide.__init__.<locals>.<lambda> at 0x7f4a73bcbb70>, which Python reported as:
+      'normalize_fn': lambda x: x,
+"""
+def make_float_and_center(x):
+  return (x / 255.).astype(np.float32)
+
+def passthrough_fn(x):
+  return x
