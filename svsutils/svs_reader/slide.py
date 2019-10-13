@@ -53,7 +53,7 @@ class Slide(object):
       'background_pct': 0.15,
       'foreground_level': 2,
       'foreground_level_from_bottom': 1,
-      'oversample_factor': 1.25,
+      'oversample_factor': 1.1,
       'output_types': [],
       'output_mag': 5,
       'verbose': False
