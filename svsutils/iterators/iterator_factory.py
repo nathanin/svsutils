@@ -118,6 +118,8 @@ class PythonIterator():
     """
     indices = np.arange(len(self.slide.tile_list))
     n_batches = len(indices) // self.batch
+    if shuffle:
+      np.random.shuffle(indices)
     batches = np.array_split(indices, n_batches)
     for bidx in batches:
       bimg = []

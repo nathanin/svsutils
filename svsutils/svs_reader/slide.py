@@ -82,7 +82,7 @@ class Slide(object):
     self._tile()
 
     ## Reconstruction params
-    self._get_place_params()
+    self.get_place_params()
     self.output_imgs, self.output_fns = {}, {}
 
     ## Finally check read tile
@@ -125,6 +125,10 @@ class Slide(object):
       self.output_imgs[name] = output_img
       if self.verbose:
         print('Initialized output {} ({})'.format(name, output_img.shape))
+
+    if self.verbose:
+      print('Initialized output image {} size {} in mode {}'.format(
+        name, output_img.shape, mode))
 
     # self.output_types.append(name) ## Err: 'tuple' object has no attribute 'append'
     if compute_fn is not None:
@@ -217,6 +221,28 @@ class Slide(object):
       img[overlap_3] = img[overlap_3] / 3.
       img[overlap_4] = img[overlap_4] / 4.
       self.output_imgs[key] = img
+
+  def get_place_params(self):
+    """ Logic translating processing size into reconstruct() args """
+    ## Place w.r.t. level 0
+    ## We have process downsample.. and downsample w.r.t. Last level
+    # ds_low_level = int(self.svs.level_downsamples[-1])
+    ds_low_level = int(self.svs.level_downsamples[self.foreground_level])
+    place_downsample = self.downsample / float(ds_low_level)
+    self.ds_low_level = ds_low_level
+    place_size = int(self.xsize * place_downsample)
+    if self.verbose:
+      print('Placing size: {}'.format(place_size))
+
+    self.place_size = place_size
+
+    place_list = []
+    for coords in self.tile_list:
+      y, x = coords
+      place_list.append([
+        int(y*(1./ds_low_level)),
+        int(x*(1./ds_low_level)) ])
+    self.place_list = place_list
 
 
   def close(self):
@@ -357,30 +383,6 @@ class Slide(object):
     self.loading_size = loading_size
     self.post_load_resize = post_load_resize
 
-
-  def _get_place_params(self):
-    """ Logic translating processing size into reconstruct() args
-
-    """
-    ## Place w.r.t. level 0
-    ## We have process downsample.. and downsample w.r.t. Last level
-    # ds_low_level = int(self.svs.level_downsamples[-1])
-    ds_low_level = int(self.svs.level_downsamples[self.foreground_level])
-    place_downsample = self.downsample / float(ds_low_level)
-    self.ds_low_level = ds_low_level
-    place_size = int(self.xsize * place_downsample)
-    if self.verbose:
-      print('Placing size: {}'.format(place_size))
-
-    self.place_size = place_size
-
-    place_list = []
-    for coords in self.tile_list:
-      y, x = coords
-      place_list.append([
-        int(y*(1./ds_low_level)),
-        int(x*(1./ds_low_level)) ])
-    self.place_list = place_list
 
 
   # def _read_region_args(self, coords):
