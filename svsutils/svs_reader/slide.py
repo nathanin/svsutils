@@ -36,7 +36,7 @@ class Slide(object):
   https://stackoverflow.com/questions/47086599/parallelising-tf-data-dataset-from-generator
   """
 
-  def __init__(self, src, aparse_space, **kwargs):
+  def __init__(self, src, aparse_space, do_tiling=True, **kwargs):
     # These live inside the class instance so they 
     # can be changed and the change will follow 
     # this particular instance around
@@ -51,7 +51,7 @@ class Slide(object):
       'background_image': None,
       'background_threshold': 210,
       'background_pct': 0.15,
-      'foreground_level': 2,
+      'foreground_level': 5,
       'foreground_level_from_bottom': 1,
       'oversample_factor': 1.1,
       'output_types': [],
@@ -76,17 +76,21 @@ class Slide(object):
     # self.low_level_index = self.get_low_level_index()
     # self.foreground = get_foreground(self.svs, low_level_index=2)
     self.foreground = get_foreground(self.svs, 
-      low_level_index=self.foreground_level,
-      low_level_offset=self.foreground_level_from_bottom)
+      low_level_index=self.foreground_level,)
     self._get_load_params()
-    self._tile()
 
     ## Reconstruction params
-    self.get_place_params()
-    self.output_imgs, self.output_fns = {}, {}
+    if do_tiling:
+      self.tile()
+      self.get_place_params()
+      self.output_imgs, self.output_fns = {}, {}
+    else:
+      self.tile_list = []
+      self.place_list = []
+      self.ds_tile_map = None
 
     ## Finally check read tile
-    self._check_read_tile()
+    # self._check_read_tile()
 
   # This allows arguments for many parts of a workflow
   # to be given from a high level and trickle down.
@@ -616,7 +620,9 @@ class Slide(object):
     self.tile_list = tile_list
 
 
-  def _tile(self):
+  def tile(self):
+    if self.verbose:
+      print('Tiling slide')
     self.tile_list = self._find_all_tiles()
     if self.background_speed == 'all':
       self._all_background()
