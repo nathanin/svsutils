@@ -160,11 +160,11 @@ class Slide(object):
     Parameters:
     shuffle (bool): Whether to return a shuffled list (true)
     """
-    tile_list = np.copy(self.tile_list)
+    index_list = np.arange(len(self.tile_list))
     if shuffle:
-      np.random.shuffle(tile_list)
+      np.random.shuffle(index_list)
 
-    for idx, _ in enumerate(tile_list):
+    for idx in index_list:
       yield idx
 
 
