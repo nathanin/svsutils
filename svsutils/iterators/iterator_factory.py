@@ -168,10 +168,9 @@ class TensorflowIterator(PythonIterator):
       img = self.slide._read_tile(coords)
       return img, idx
 
-    return tf.py_func(func = wrapped_fn,
+    return tf.py_function(func = wrapped_fn,
                       inp  = [idx],
-                      Tout = self.dtypes,
-                      stateful = False)
+                      Tout = self.dtypes)
 
   def make_dataset(self):
     ds = tf.data.Dataset.from_generator(generator=self.slide.generate_index,
