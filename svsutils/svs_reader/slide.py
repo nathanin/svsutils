@@ -43,7 +43,7 @@ class Slide(object):
     self.arg_defaults = {
       # 'slide_path': None,
       'low_level_mag': 5,
-      'preprocess_fn': make_float_and_center,  ## 0-1
+      'preprocess_fn': make_float,  ## 0-1
       'process_mag': 10,
       'xsize': 256,
       'normalize_fn': passthrough_fn,
@@ -51,7 +51,7 @@ class Slide(object):
       'background_image': None,
       'background_threshold': 210,
       'background_pct': 0.15,
-      'foreground_level': 5,
+      'foreground_level': 4,
       'foreground_level_from_bottom': 1,
       'oversample_factor': 1.1,
       'output_types': [],
@@ -76,7 +76,7 @@ class Slide(object):
     # self.low_level_index = self.get_low_level_index()
     # self.foreground = get_foreground(self.svs, low_level_index=2)
     self.foreground = get_foreground(self.svs, 
-      low_level_index=self.foreground_level,)
+                        low_level_index=self.foreground_level,)
     self._get_load_params()
 
     ## Reconstruction params
@@ -117,6 +117,7 @@ class Slide(object):
     ## Initialize an image for dimensions preserving output
     if mode=='full':
       h,w = self.foreground.shape[:2]
+      # h,w = self.slide_info['level_dimensions'][0]
       output_img = np.zeros((int(h), int(w), dim), dtype=np.float32)
       self.output_imgs[name] = output_img
 
@@ -310,19 +311,26 @@ class Slide(object):
     #if scan_power == 20 and level_count ==4:
     #  raise Exception('Malformed slide. {}'.format(self.slide_path))
 
-    if self.verbose:
-      print('Slide: %s' % self.slide_path)
-      print('\t power: %d' % scan_power)
-      print('\t levels: %d' % level_count)
-      print('\t high_power_dim: %d %d' % (high_power_dim))
-      print('\t low_power_dim: %d %d' % (low_power_dim))
-
     self.slide_info = {
       'scan_power': scan_power,
       'level_count': level_count,
       'high_power_dim': high_power_dim,
       'low_power_dim': low_power_dim,
       'level_dimensions': svs.level_dimensions }
+
+    if len(svs.level_dimensions)-1 < self.foreground_level:
+      print(f'WARN: setting foreground level: {len(svs.level_dimensions) - 1}')
+      self.foreground_level = len(svs.level_dimensions) - 1
+
+    if self.verbose:
+      print(f'Slide: {self.slide_path}')
+      print(f'\t power: {scan_power}')
+      print(f'\t levels: {level_count}')
+      print(f'\t high_power_dim: {high_power_dim}')
+      print(f'\t low_power_dim: {low_power_dim}')
+      print(f'\t level_dimensions: {svs.level_dimensions}')
+      print(f'\t requested foreground level: {self.foreground_level}')
+
     return svs
 
 
@@ -666,7 +674,7 @@ If this is a lambda function, the error may be avoided by creating the lambda in
 WARNING:tensorflow:Entity <function Slide.__init__.<locals>.<lambda> at 0x7f4a73bcbb70> could not be transformed and will be executed as-is. Please report this to the AutoGraph team. When filing the bug, set the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and attach the full output. Cause: Failed to parse source code of <function Slide.__init__.<locals>.<lambda> at 0x7f4a73bcbb70>, which Python reported as:
       'normalize_fn': lambda x: x,
 """
-def make_float_and_center(x):
+def make_float(x):
   return (x / 255.).astype(np.float32)
 
 def passthrough_fn(x):
