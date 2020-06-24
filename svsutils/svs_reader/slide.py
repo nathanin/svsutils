@@ -75,8 +75,13 @@ class Slide(object):
 
     # self.low_level_index = self.get_low_level_index()
     # self.foreground = get_foreground(self.svs, low_level_index=2)
-    self.foreground = get_foreground(self.svs, 
-                        low_level_index=self.foreground_level,)
+    try:
+      self.foreground = get_foreground(self.svs, low_level_index=self.foreground_level,)
+    except:
+      print('WARNING foreground image loading failed. Continuing with all-zeros foreground')
+      dims = self.slide_info['level_dimensions'][self.foreground_level]
+      self.foreground = np.zeros(dims, dtype=np.uint8)
+
     self._get_load_params()
 
     ## Reconstruction params
